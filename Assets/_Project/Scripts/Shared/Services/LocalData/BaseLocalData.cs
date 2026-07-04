@@ -55,5 +55,6 @@ public abstract class BaseLocalData
 
 public enum LocalDataEnum
 {
-     
+     Map,
+     Maze
 }
