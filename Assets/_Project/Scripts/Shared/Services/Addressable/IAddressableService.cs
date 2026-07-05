@@ -35,6 +35,9 @@
 
      #region ── Scene ──────────────────────────────────────────────
 
+          public UniTask<IAddressableSceneHandle> PreloadSceneAsync(string key, LoadSceneMode mode = LoadSceneMode.Single,
+               CancellationToken                                           ct = default);
+
           UniTask LoadSceneAsync(string key, LoadSceneMode mode = LoadSceneMode.Single, CancellationToken ct = default);
 
           UniTask UnloadSceneAsync(string key);
