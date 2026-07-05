@@ -31,12 +31,12 @@
                {
                     Model = JsonConvert.DeserializeObject<MapLocalDataModel>(json);
 
-                    if (Model.stageStars == null)
+                    if (Model.StageStars == null)
                     {
                          Model = new MapLocalDataModel
                          {
-                              currentLevel = Model.currentLevel,
-                              stageStars   = new Dictionary<int, int>()
+                              CurrentLevel = Model.CurrentLevel,
+                              StageStars   = new Dictionary<int, int>()
                          };
                     }
                } catch (Exception exception)
@@ -58,8 +58,8 @@
           {
                return new MapLocalDataModel
                {
-                    currentLevel = 1,
-                    stageStars   = new Dictionary<int, int>()
+                    CurrentLevel = 1,
+                    StageStars   = new Dictionary<int, int>()
                };
           }
      }
@@ -67,43 +67,43 @@
      [Serializable]
      public class MapLocalDataModel
      {
-          public int                  currentLevel = 0;
-          public Dictionary<int, int> stageStars; // Key: Stage number, Value: Star count
+          public int                  CurrentLevel = 0;
+          public Dictionary<int, int> StageStars; // Key: Stage number, Value: Star count
 
           public void AddOrUpdateStageStars(int stageNumber, int starCount)
           {
-               stageStars              ??= new Dictionary<int, int>();
-               stageStars[stageNumber] =   starCount;
+               StageStars              ??= new Dictionary<int, int>();
+               StageStars[stageNumber] =   starCount;
           }
 
           public void Reset()
           {
-               currentLevel = 0;
-               stageStars   = new Dictionary<int, int>();
+               CurrentLevel = 0;
+               StageStars   = new Dictionary<int, int>();
           }
-          
+
           public void ResetStageStars(int stageNumber)
           {
-               stageStars              ??= new Dictionary<int, int>();
-               stageStars[stageNumber] =   0;
+               StageStars              ??= new Dictionary<int, int>();
+               StageStars[stageNumber] =   0;
           }
 
           public int GetTotalStars()
           {
                int totalStars = 0;
 
-               if (stageStars == null) return totalStars;
+               if (StageStars == null) return totalStars;
 
-               return stageStars.Values.Sum();
+               return StageStars.Values.Sum();
           }
 
           public int GetStarsForStage(int stageNumber)
           {
-               if (stageStars == null || !stageStars.TryGetValue(stageNumber, out int star)) return 0;
+               if (StageStars == null || !StageStars.TryGetValue(stageNumber, out int star)) return 0;
 
                return star;
           }
 
-          public bool ContainsStage(int stageNumber) { return stageStars != null && stageStars.ContainsKey(stageNumber); }
+          public bool ContainsStage(int stageNumber) { return StageStars != null && StageStars.ContainsKey(stageNumber); }
      }
 }

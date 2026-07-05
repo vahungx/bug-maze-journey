@@ -1,6 +1,11 @@
-﻿namespace _Project.Scripts.Scenes
+namespace _Project.Scripts.Scenes
 {
      using System;
+     using _Project.Scripts.Shared.Addressable;
+     using _Project.Scripts.Shared.Services;
+     using _Project.Scripts.Shared.Services.UI;
+     using _Project.Scripts.UI;
+     using _Project.Scripts.UI.Screen;
      using Cysharp.Threading.Tasks;
      using DG.Tweening;
      using UnityEngine;
@@ -25,58 +30,47 @@
                     return;
                }
 
+               if (!ServiceLocator.TryResolve<IUIService>(out var uiService))
+               {
+               #if UNITY_EDITOR
+                    Debug.LogError("[Loading] UIService is not registered.");
+               #endif
+                    return;
+               }
+
                var cancellationToken = this.GetCancellationTokenOnDestroy();
 
-               AsyncOperation sceneLoad;
-
                try
                {
-                    sceneLoad = SceneManager.LoadSceneAsync(_homeSceneName, LoadSceneMode.Single);
+                    var addressableService = ServiceLocator.Resolve<IAddressableService>();
+                    Debug.Log("0");
+                    await uiService.PreloadLoadingAsync<LoadingView>(nameof(LoadingView), cancellationToken);
+                    var sceneLoad = await addressableService.PreloadSceneAsync(_homeSceneName, ct: cancellationToken);
+
+                    _progressBar.fillAmount = 0.3f;
+
+                    _progressBar.DOFillAmount(1f, _loadingDuration).SetEase(Ease.Linear).SetTarget(_progressBar);
+                    Debug.Log("1");
+
+                    await UniTask.WaitForSeconds(_loadingDuration, cancellationToken: cancellationToken);
+                    _progressBar.DOKill();
+                    _progressBar.fillAmount = 1f;
+                    await uiService.ShowLoadingAsync<LoadingView>(nameof(LoadingView));
+
+                    await sceneLoad.ActivateAsync();
+
+                    await uiService.OpenScreenAsync<MapScreen>(nameof(MapScreen));
+
+                    await uiService.HideLoadingAsync();
                } catch (Exception exception)
                {
-               #if UNITY_EDITOR
+               #if UNITY_EDITOR || DEVELOPMENT_BUILD
                     Debug.LogError($"[Loading] Cannot load scene '{_homeSceneName}'. Exception: {exception.Message}");
                #endif
-                    return;
-               }
-
-               if (sceneLoad == null)
-               {
-               #if UNITY_EDITOR
-                    Debug.LogError(
-                         $"[Loading] Cannot load scene '{_homeSceneName}'. Make sure it is added to Build Settings.");
-               #endif
-                    return;
-               }
-
-               sceneLoad.allowSceneActivation = false;
-
-               _progressBar.fillAmount = 0.3f;
-
-               _progressBar.DOFillAmount(1f, _loadingDuration).SetEase(Ease.Linear).SetTarget(_progressBar);
-
-               try
-               {
-                    var preloadTask = UniTask.WaitUntil(() => sceneLoad.progress >= 0.9f,
-                         cancellationToken: cancellationToken);
-
-                    var progressTask =
-                         UniTask.WaitUntil(() => _progressBar.fillAmount >= Mathf.Max(1f, _progressBar.fillAmount),
-                              cancellationToken: cancellationToken);
-
-                    await UniTask.WhenAll(preloadTask, progressTask);
-               } catch (OperationCanceledException)
-               {
-                    // Object destroyed, ignore safely.
                } finally
                {
                     if (_progressBar != null)
-                    {
                          _progressBar.DOKill();
-                    }
-
-                    _progressBar.fillAmount        = 1f;
-                    sceneLoad.allowSceneActivation = true;
                }
           }
      }

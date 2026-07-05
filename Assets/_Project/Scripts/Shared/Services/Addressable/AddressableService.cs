@@ -22,7 +22,8 @@
           private readonly Dictionary<GameObject, AsyncOperationHandle<GameObject>> _instanceHandles = new();
 
           // Track scene handles
-          private readonly Dictionary<string, AsyncOperationHandle<SceneInstance>> _sceneHandles = new();
+          private readonly Dictionary<string, AsyncOperationHandle<SceneInstance>> _sceneHandles    = new();
+          private readonly Dictionary<string, IAddressableSceneHandle>             _sceneOperations = new();
 
           // ── Load single ────────────────────────────────────────────────────────
           public async UniTask<T> LoadAssetAsync<T>(string key, CancellationToken ct = default)
@@ -139,16 +140,31 @@
           }
 
           // ── Load Scene ────────────────────────────────────────────────────────
+          public UniTask<IAddressableSceneHandle> PreloadSceneAsync(string key, LoadSceneMode mode = LoadSceneMode.Single,
+               CancellationToken                                           ct = default)
+          {
+               if (string.IsNullOrWhiteSpace(key))
+                    throw new ArgumentException("Addressable scene key cannot be empty.", nameof(key));
+
+               ct.ThrowIfCancellationRequested();
+
+               if (_sceneOperations.TryGetValue(key, out var cached))
+                    return UniTask.FromResult(cached);
+
+               var handle    = Addressables.LoadSceneAsync(key, mode, activateOnLoad: false);
+               var operation = new AddressableSceneHandle(key, handle);
+
+               _sceneHandles[key]    = handle;
+               _sceneOperations[key] = operation;
+
+               return UniTask.FromResult<IAddressableSceneHandle>(operation);
+          }
+
           public async UniTask LoadSceneAsync(string key, LoadSceneMode mode = LoadSceneMode.Single,
                CancellationToken                     ct = default)
           {
-               var handle = Addressables.LoadSceneAsync(key, mode);
-               await handle.ToUniTask(cancellationToken: ct);
-
-               if (handle.Status == AsyncOperationStatus.Succeeded)
-                    _sceneHandles[key] = handle;
-               else
-                    Debug.LogError($"[Addressable] Failed to load scene: {key}");
+               var operation = await PreloadSceneAsync(key, mode, ct);
+               await operation.ActivateAsync(ct);
           }
 
           // ── Unload Scene ──────────────────────────────────────────────────────
@@ -158,6 +174,7 @@
 
                await Addressables.UnloadSceneAsync(handle).ToUniTask();
                _sceneHandles.Remove(key);
+               _sceneOperations.Remove(key);
           }
 
           // ── Kiểm tra download size trước khi tải (Remote assets) ─────────────
@@ -208,6 +225,7 @@
                if (string.IsNullOrWhiteSpace(key))
                {
                     Debug.LogWarning($"[Addressable] Key is empty or null");
+
                     return false;
                }
 
@@ -216,10 +234,10 @@
                try
                {
                     await handle.ToUniTask(cancellationToken: ct);
-               }
-               catch (OperationCanceledException)
+               } catch (OperationCanceledException)
                {
                     Addressables.Release(handle);
+
                     throw;
                }
 
@@ -266,8 +284,38 @@
                _refCount.Clear();
                _instanceHandles.Clear();
                _sceneHandles.Clear();
+               _sceneOperations.Clear();
           }
 
           public void Dispose() => ReleaseAll();
+
+          private sealed class AddressableSceneHandle : IAddressableSceneHandle
+          {
+               private readonly string                              _key;
+               private readonly AsyncOperationHandle<SceneInstance> _handle;
+               private          bool                                _activated;
+
+               public float Progress =>
+                    !_handle.IsValid() ? 0f : _handle.IsDone ? 1f : Mathf.Clamp01(_handle.PercentComplete / 0.9f);
+
+               public AddressableSceneHandle(string key, AsyncOperationHandle<SceneInstance> handle)
+               {
+                    _key    = key;
+                    _handle = handle;
+               }
+
+               public async UniTask ActivateAsync(CancellationToken ct = default)
+               {
+                    if (_activated) return;
+
+                    await _handle.ToUniTask(cancellationToken: ct);
+
+                    if (_handle.Status != AsyncOperationStatus.Succeeded)
+                         throw new InvalidOperationException($"[Addressable] Failed to preload scene: {_key}");
+
+                    await _handle.Result.ActivateAsync().ToUniTask(cancellationToken: ct);
+                    _activated = true;
+               }
+          }
      }
 }
