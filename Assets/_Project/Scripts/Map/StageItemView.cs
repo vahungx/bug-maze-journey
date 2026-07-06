@@ -2,6 +2,7 @@
 {
      using System;
      using _Project.Scripts.LocalData;
+     using _Project.Scripts.Shared;
      using _Project.Scripts.Shared.Addressable;
      using _Project.Scripts.Shared.Services;
      using _Project.Scripts.Shared.Services.LocalData;
@@ -27,6 +28,8 @@
           int               _index;
           MapLocalDataModel _mapLocalDataModel;
 
+          public bool IsUnlocked { get; private set; }
+
           void Awake()
           {
                _mapLocalDataModel = ServiceLocator.Resolve<ILocalDataService>().Get<MapLocalData>().Model;
@@ -43,7 +46,7 @@
                     return;
                }
 
-               if (_mapLocalDataModel.CurrentLevel < _index)
+               if (_mapLocalDataModel.CurrentStageIndex < _index)
                {
                     // Stage chưa mở, không làm gì cả
                     return;
@@ -58,13 +61,19 @@
                var uiService = ServiceLocator.Resolve<IUIService>();
                await uiService.ShowLoadingAsync<LoadingView>(nameof(LoadingView));
                var addressableService = ServiceLocator.Resolve<IAddressableService>();
-               await addressableService.LoadSceneAsync("2.Maze", UnityEngine.SceneManagement.LoadSceneMode.Single);
+               await addressableService.LoadSceneAsync(Constant.SCENE_MAZE);
                Scenes.Maze.Instance.Init(_index);
-               await uiService.OpenScreenAsync<BaseScreen>(nameof(MazeScreen));
+
+               await uiService.OpenScreenAsync<BaseScreen>(nameof(MazeScreen), new MazeScreenModel()
+               {
+                    MazeController = Scenes.Maze.Instance.MazeController,
+                    StageIndex     = _index
+               });
+
                await uiService.HideLoadingAsync();
           }
 
-          public void SetView(int index, int stars)
+          public void SetView(int index)
           {
                if (_mapLocalDataModel == null)
                {
@@ -75,19 +84,11 @@
                     return;
                }
 
-               _index = index;
+               _index     = index;
+               IsUnlocked = _mapLocalDataModel.CurrentStageIndex >= _index;
+               int stars = _mapLocalDataModel.GetStarsForStage(_index);
 
-               // Nếu stage chưa có trong dữ liệu local và currentLevel < index, thì thêm stage vào dữ liệu local
-               if (!_mapLocalDataModel.ContainsStage(_index) && _mapLocalDataModel.CurrentLevel >= _index)
-               {
-                    _mapLocalDataModel.AddOrUpdateStageStars(_index, stars);
-               }
-               else
-               {
-                    stars = _mapLocalDataModel.GetStarsForStage(_index);
-               }
-
-               _stageStars.SetStageStar(_mapLocalDataModel.CurrentLevel < _index ? 0 : stars);
+               _stageStars.SetStageStar(IsUnlocked ? stars : 0);
 
                if (_index == 0)
                {
@@ -101,7 +102,7 @@
                }
 
                _levelText.text = (_index + 1).ToString();
-               _lockObject.SetActive(_mapLocalDataModel.CurrentLevel < _index);
+               _lockObject.SetActive(!IsUnlocked);
           }
      }
 }

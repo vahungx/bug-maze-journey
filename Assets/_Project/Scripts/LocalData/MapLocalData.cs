@@ -3,6 +3,7 @@
      using System;
      using System.Collections.Generic;
      using System.Linq;
+     using _Project.Scripts.Shared;
      using Newtonsoft.Json;
 #if UNITY_EDITOR
      using UnityEngine;
@@ -35,8 +36,8 @@
                     {
                          Model = new MapLocalDataModel
                          {
-                              CurrentLevel = Model.CurrentLevel,
-                              StageStars   = new Dictionary<int, int>()
+                              CurrentStageIndex = Model.CurrentStageIndex,
+                              StageStars        = new Dictionary<int, int>()
                          };
                     }
                } catch (Exception exception)
@@ -58,8 +59,8 @@
           {
                return new MapLocalDataModel
                {
-                    CurrentLevel = 1,
-                    StageStars   = new Dictionary<int, int>()
+                    CurrentStageIndex = 1,
+                    StageStars        = new Dictionary<int, int>()
                };
           }
      }
@@ -67,7 +68,7 @@
      [Serializable]
      public class MapLocalDataModel
      {
-          public int                  CurrentLevel = 0;
+          public int                  CurrentStageIndex = 0;
           public Dictionary<int, int> StageStars; // Key: Stage number, Value: Star count
 
           public void AddOrUpdateStageStars(int stageNumber, int starCount)
@@ -78,8 +79,8 @@
 
           public void Reset()
           {
-               CurrentLevel = 0;
-               StageStars   = new Dictionary<int, int>();
+               CurrentStageIndex = 0;
+               StageStars        = new Dictionary<int, int>();
           }
 
           public void ResetStageStars(int stageNumber)
@@ -105,5 +106,28 @@
           }
 
           public bool ContainsStage(int stageNumber) { return StageStars != null && StageStars.ContainsKey(stageNumber); }
+
+          public void RandomizeUnlockedStageStars()
+          {
+               StageStars ??= new Dictionary<int, int>();
+               StageStars.Clear();
+
+               var random = new System.Random();
+
+               for (int stageIndex = Constant.STAGE_INDEX_MIN; stageIndex < CurrentStageIndex; stageIndex++)
+               {
+                    StageStars[stageIndex] = random.Next(1, Constant.STAGE_STARS_MAX + 1);
+               }
+
+               StageStars[CurrentStageIndex] = 0;
+          }
+
+          public void UnlockNewLevelByStage(int stageIndex)
+          {
+               if (stageIndex < CurrentStageIndex || stageIndex >= Constant.STAGE_INDEX_MAX) return;
+
+               CurrentStageIndex = stageIndex + 1;
+               AddOrUpdateStageStars(CurrentStageIndex, 0);
+          }
      }
 }

@@ -12,9 +12,15 @@ namespace _Project.Scripts.Shared.Services.UI
           UniTask<T> OpenScreenAsync<T>(string key, CancellationToken ct = default)
                where T : BaseScreen;
 
+          UniTask<T> OpenScreenAsync<T>(string key, IUIModel model, CancellationToken ct = default)
+               where T : BaseScreen;
+
           void CloseScreen();
 
           UniTask<T> OpenPopupAsync<T>(string key, CancellationToken ct = default)
+               where T : BasePopup;
+
+          UniTask<T> OpenPopupAsync<T>(string key, IUIModel model, CancellationToken ct = default)
                where T : BasePopup;
 
           void ClosePopup();
@@ -27,6 +33,10 @@ namespace _Project.Scripts.Shared.Services.UI
                where T : BaseLoading;
 
           UniTask ShowLoadingAsync<T>(string key, Action onFadeInCompleted = null, CancellationToken ct = default)
+               where T : BaseLoading;
+
+          UniTask ShowLoadingAsync<T>(string key, IUIModel model, Action onFadeInCompleted = null,
+               CancellationToken ct = default)
                where T : BaseLoading;
 
           UniTask HideLoadingAsync(Action onFadeOutCompleted = null, CancellationToken ct = default);

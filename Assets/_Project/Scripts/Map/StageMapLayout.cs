@@ -1,6 +1,7 @@
 ﻿namespace _Project.Scripts.Map
 {
      using System.Collections.Generic;
+     using _Project.Scripts.Shared;
      using UnityEngine;
      using UnityEngine.UI;
 
@@ -11,16 +12,17 @@
           [SerializeField] private StageMapRow   rowPrefab;
 
           [Header("Stage Row Layout")]
-          [SerializeField] private int totalStage = 999;
+          [SerializeField] private int stagePerRow = 4;
 
-          [SerializeField]         private int   stagePerRow = 4;
-          [SerializeField]         private float rowHeight   = 250f;
-          [SerializeField, Min(1)] private int   maxRowShow  = 6;
+          [SerializeField]         private float rowHeight  = 250f;
+          [SerializeField, Min(1)] private int   maxRowShow = 6;
 
           private readonly List<StageMapRow> _rowPool = new();
 
-          private int _totalRow;
-          private int _currentPoolStart = -1;
+          private int  _totalRow;
+          private int  _currentPoolStart  = -1;
+          private int  _pendingStageIndex = Constant.STAGE_INDEX_MIN;
+          private bool _isBuilt;
 
           private void Start()
           {
@@ -32,7 +34,7 @@
 
           private void Build()
           {
-               _totalRow = Mathf.CeilToInt(totalStage / (float)stagePerRow);
+               _totalRow = Mathf.CeilToInt(Constant.STAGE_COUNT / (float)stagePerRow);
                float contentHeight = _totalRow * rowHeight;
 
                // Content bắt đầu từ bottom và kéo dài lên top
@@ -58,8 +60,8 @@
 
                Canvas.ForceUpdateCanvases();
 
-               scrollRect.verticalNormalizedPosition = 0f;
-               RefreshRows(0);
+               _isBuilt = true;
+               ScrollToStage(_pendingStageIndex);
           }
 
           private void OnScrollValueChanged(Vector2 _)
@@ -76,20 +78,21 @@
                RefreshRows(poolStart);
           }
 
-          public void RefreshRows(int poolStart, bool forceRefresh = false)
+          void RefreshRows(int poolStart, bool forceRefresh = false)
           {
-               if (forceRefresh)
+               switch (forceRefresh)
                {
-                    _currentPoolStart        = poolStart;
-                    scrollRect.StopMovement();
-                    content.anchoredPosition = Vector2.zero;
-               }
-               else
-               {
-                    if (poolStart == _currentPoolStart) return;
+                    case true:
+                         _currentPoolStart = -1;
+                         scrollRect.StopMovement();
 
-                    _currentPoolStart = poolStart;
+                         break;
+
+                    case false when poolStart == _currentPoolStart:
+                         return;
                }
+
+               _currentPoolStart = poolStart;
 
                for (int poolIndex = 0; poolIndex < _rowPool.Count; poolIndex++)
                {
@@ -102,6 +105,27 @@
                     rowRect.anchoredPosition = new Vector2(0f, rowIndex * rowHeight);
                     row.transform.SetAsFirstSibling();
                }
+          }
+
+          public void ScrollToStage(int stageIndex)
+          {
+               _pendingStageIndex = Mathf.Clamp(stageIndex, Constant.STAGE_INDEX_MIN, Constant.STAGE_INDEX_MAX);
+
+               if (!_isBuilt)
+                    return;
+
+               int targetRow          = _pendingStageIndex / stagePerRow;
+               int maxFirstVisibleRow = Mathf.Max(0, _totalRow      - maxRowShow);
+               int firstVisibleRow    = Mathf.Clamp(targetRow       - maxRowShow / 2, 0, maxFirstVisibleRow);
+               int poolStart          = Mathf.Clamp(firstVisibleRow - 1, 0, Mathf.Max(0, _totalRow - _rowPool.Count));
+
+               scrollRect.StopMovement();
+
+               scrollRect.verticalNormalizedPosition = maxFirstVisibleRow == 0
+                                                            ? 0f
+                                                            : firstVisibleRow / (float)maxFirstVisibleRow;
+
+               RefreshRows(poolStart, true);
           }
      }
 }
