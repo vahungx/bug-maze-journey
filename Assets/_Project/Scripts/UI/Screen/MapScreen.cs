@@ -10,19 +10,45 @@
      using UnityEngine;
      using UnityEngine.UI;
 
+     public class MapScreenModel : IUIModel
+     {
+          public int StageIndex;
+     }
+
      public class MapScreen : BaseScreen
      {
           [SerializeField] Button          _resetButton;
+          [SerializeField] Button          _currentLevelButton;
           [SerializeField] StageMapLayout  _stageMapLayout;
           [SerializeField] TextMeshProUGUI _currentLevelText;
           MapLocalDataModel                _mapLocalDataModel;
 
           void Awake()
           {
+               _resetButton.onClick.AddListener(OnResetButtonClicked);
+
+               _currentLevelButton.onClick.AddListener(() =>
+               {
+                    _stageMapLayout.ScrollToStage(_mapLocalDataModel.CurrentStageIndex);
+               });
+
                ServiceLocator.TryResolve(out ILocalDataService localDataService);
                _mapLocalDataModel = localDataService.Get<MapLocalData>().Model;
-               _resetButton.onClick.AddListener(OnResetButtonClicked);
-               _currentLevelText.text = $"Level {_mapLocalDataModel.CurrentLevel}";
+               _stageMapLayout.ScrollToStage(_mapLocalDataModel.CurrentStageIndex);
+          }
+
+          protected override void OnOpen()
+          {
+               base.OnOpen();
+               _currentLevelText.text = $"Level {_mapLocalDataModel.CurrentStageIndex + 1}";
+          }
+
+          protected override void OnOpen(IUIModel model)
+          {
+               base.OnOpen(model);
+
+               if (Model is MapScreenModel mapScreenModal)
+                    _stageMapLayout.ScrollToStage(mapScreenModal.StageIndex);
           }
 
           void OnResetButtonClicked()
@@ -36,9 +62,11 @@
                }
 
                _mapLocalDataModel.Reset();
-               _mapLocalDataModel.CurrentLevel = Random.Range(Constant.STAGE_MAP_MIN, Constant.STAGE_MAP_MAX);
-               _currentLevelText.text          = $"Level {_mapLocalDataModel.CurrentLevel}";
-               _stageMapLayout.RefreshRows(0, true);
+               _mapLocalDataModel.CurrentStageIndex = Random.Range(Constant.STAGE_INDEX_MIN, Constant.STAGE_COUNT);
+               _mapLocalDataModel.RandomizeUnlockedStageStars();
+               _currentLevelText.text = $"Level {_mapLocalDataModel.CurrentStageIndex + 1}";
+
+               _stageMapLayout.ScrollToStage(_mapLocalDataModel.CurrentStageIndex);
           }
      }
 }

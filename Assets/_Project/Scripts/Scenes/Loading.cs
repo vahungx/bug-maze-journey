@@ -9,7 +9,6 @@ namespace _Project.Scripts.Scenes
      using Cysharp.Threading.Tasks;
      using DG.Tweening;
      using UnityEngine;
-     using UnityEngine.SceneManagement;
      using UnityEngine.UI;
 
      public class Loading : MonoBehaviour

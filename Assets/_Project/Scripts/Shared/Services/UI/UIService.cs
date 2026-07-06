@@ -36,17 +36,30 @@ namespace _Project.Scripts.Shared.Services.UI
                _loadingRoot = CreateCanvas("Loading", 200);
           }
 
-          public async UniTask<T> OpenScreenAsync<T>(string key, CancellationToken ct = default)
+          public UniTask<T> OpenScreenAsync<T>(string key, CancellationToken ct = default)
+               where T : BaseScreen
+          {
+               return OpenScreenAsync<T>(key, null, ct);
+          }
+
+          public async UniTask<T> OpenScreenAsync<T>(string key, IUIModel model, CancellationToken ct = default)
                where T : BaseScreen
           {
                var screen = await GetOrCreateAsync<T>(key, _screenRoot, ct);
 
-               if (screen == null || screen == CurrentScreen) return screen;
+               if (screen == null) return null;
+
+               if (screen == CurrentScreen)
+               {
+                    screen.Open(model);
+
+                    return screen;
+               }
 
                CurrentScreen?.Close();
                CurrentScreen = screen;
                screen.transform.SetAsLastSibling();
-               screen.Open();
+               screen.Open(model);
 
                return screen;
           }
@@ -57,7 +70,13 @@ namespace _Project.Scripts.Shared.Services.UI
                CurrentScreen = null;
           }
 
-          public async UniTask<T> OpenPopupAsync<T>(string key, CancellationToken ct = default)
+          public UniTask<T> OpenPopupAsync<T>(string key, CancellationToken ct = default)
+               where T : BasePopup
+          {
+               return OpenPopupAsync<T>(key, null, ct);
+          }
+
+          public async UniTask<T> OpenPopupAsync<T>(string key, IUIModel model, CancellationToken ct = default)
                where T : BasePopup
           {
                var popup = await GetOrCreateAsync<T>(key, _popupRoot, ct);
@@ -67,7 +86,7 @@ namespace _Project.Scripts.Shared.Services.UI
                _popupStack.Remove(popup);
                _popupStack.Add(popup);
                popup.transform.SetAsLastSibling();
-               popup.Open();
+               popup.Open(model);
 
                return popup;
           }
@@ -100,8 +119,15 @@ namespace _Project.Scripts.Shared.Services.UI
                await GetOrCreateAsync<T>(key, _loadingRoot, ct);
           }
 
-          public async UniTask ShowLoadingAsync<T>(string key, Action onFadeInCompleted = null,
-               CancellationToken                          ct = default)
+          public UniTask ShowLoadingAsync<T>(string key, Action onFadeInCompleted = null,
+               CancellationToken ct = default)
+               where T : BaseLoading
+          {
+               return ShowLoadingAsync<T>(key, null, onFadeInCompleted, ct);
+          }
+
+          public async UniTask ShowLoadingAsync<T>(string key, IUIModel model, Action onFadeInCompleted = null,
+               CancellationToken ct = default)
                where T : BaseLoading
           {
                if (_loading != null && _loadingKey != key)
@@ -117,7 +143,7 @@ namespace _Project.Scripts.Shared.Services.UI
                if (_loadingCount++ == 0)
                {
                     loading.transform.SetAsLastSibling();
-                    loading.Open();
+                    loading.Open(model);
                     await loading.FadeInAsync(onFadeInCompleted, ct);
                }
           }

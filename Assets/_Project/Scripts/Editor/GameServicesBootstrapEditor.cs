@@ -45,7 +45,7 @@ namespace _Project.Scripts.Editor
 
                using (new EditorGUI.DisabledScope(true))
                {
-                    EditorGUILayout.IntField("Current Level", model.CurrentLevel);
+                    EditorGUILayout.IntField("Current Level", model.CurrentStageIndex);
                     EditorGUILayout.IntField("Total Stars", model.GetTotalStars());
                     DrawStageStars(model.StageStars);
                }

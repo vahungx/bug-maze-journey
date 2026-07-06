@@ -20,6 +20,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1dccc5de2d4a2ca47b29c8e992ab7127
+    m_Address: WinPopup
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 3f7b934769dad4740b72b0e7cad1779e
     m_Address: MazeScreen
     m_ReadOnly: 0
