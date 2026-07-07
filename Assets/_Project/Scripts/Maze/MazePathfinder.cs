@@ -1,12 +1,21 @@
-﻿namespace _Project.Scripts.Maze
+namespace _Project.Scripts.Maze
 {
      using System.Collections.Generic;
      using UnityEngine;
-     using Random = System.Random;
 
      public sealed class MazePathfinder
      {
           private static readonly Vector2Int InvalidCell = new(-1, -1);
+
+          private readonly Queue<Vector2Int> _queue          = new();
+          private readonly List<Vector2Int>  _pathBuffer     = new();
+          private readonly Vector2Int[]      _neighborBuffer = new Vector2Int[4];
+
+          private bool[,]       _visited;
+          private Vector2Int[,] _parent;
+          private int[,]        _distance;
+          private int           _bufferWidth;
+          private int           _bufferHeight;
 
           public bool TryFindPath(MazeData mazeData, Vector2Int start, Vector2Int target, out List<Vector2Int> path)
           {
@@ -21,26 +30,19 @@
                if (!mazeData.IsInside(target.x, target.y))
                     return false;
 
-               var visited = new bool[mazeData.Width, mazeData.Height];
-               var parent  = new Vector2Int[mazeData.Width, mazeData.Height];
+               EnsureBuffers(mazeData.Width, mazeData.Height);
+               ResetVisited();
+               ResetParent();
 
-               for (int y = 0; y < mazeData.Height; y++)
-               {
-                    for (int x = 0; x < mazeData.Width; x++)
-                    {
-                         parent[x, y] = InvalidCell;
-                    }
-               }
-
-               var queue = new Queue<Vector2Int>();
-               queue.Enqueue(start);
-               visited[start.x, start.y] = true;
+               _queue.Clear();
+               _queue.Enqueue(start);
+               _visited[start.x, start.y] = true;
 
                bool found = false;
 
-               while (queue.Count > 0)
+               while (_queue.Count > 0)
                {
-                    var current = queue.Dequeue();
+                    var current = _queue.Dequeue();
 
                     if (current == target)
                     {
@@ -49,21 +51,25 @@
                          break;
                     }
 
-                    foreach (var next in GetWalkableNeighbors(mazeData, current))
+                    int neighborCount = FillWalkableNeighbors(mazeData, current, _neighborBuffer);
+
+                    for (int i = 0; i < neighborCount; i++)
                     {
-                         if (visited[next.x, next.y])
+                         var next = _neighborBuffer[i];
+
+                         if (_visited[next.x, next.y])
                               continue;
 
-                         visited[next.x, next.y] = true;
-                         parent[next.x, next.y]  = current;
-                         queue.Enqueue(next);
+                         _visited[next.x, next.y] = true;
+                         _parent[next.x, next.y]  = current;
+                         _queue.Enqueue(next);
                     }
                }
 
                if (!found)
                     return false;
 
-               path = ReconstructPath(parent, start, target);
+               path = ReconstructPath(start, target);
 
                return path is
                {
@@ -73,111 +79,152 @@
 
           public int[,] BuildDistanceMap(MazeData mazeData, Vector2Int start)
           {
-               var distance = new int[mazeData.Width, mazeData.Height];
-
-               for (int y = 0; y < mazeData.Height; y++)
-               {
-                    for (int x = 0; x < mazeData.Width; x++)
-                    {
-                         distance[x, y] = -1;
-                    }
-               }
+               EnsureBuffers(mazeData.Width, mazeData.Height);
+               ResetDistance();
 
                if (!mazeData.IsInside(start.x, start.y))
-                    return distance;
+                    return _distance;
 
-               var queue = new Queue<Vector2Int>();
-               queue.Enqueue(start);
-               distance[start.x, start.y] = 0;
+               _queue.Clear();
+               _queue.Enqueue(start);
+               _distance[start.x, start.y] = 0;
 
-               while (queue.Count > 0)
+               while (_queue.Count > 0)
                {
-                    var current         = queue.Dequeue();
-                    int currentDistance = distance[current.x, current.y];
+                    var current         = _queue.Dequeue();
+                    int currentDistance = _distance[current.x, current.y];
+                    int neighborCount   = FillWalkableNeighbors(mazeData, current, _neighborBuffer);
 
-                    foreach (var next in GetWalkableNeighbors(mazeData, current))
+                    for (int i = 0; i < neighborCount; i++)
                     {
-                         if (distance[next.x, next.y] >= 0)
+                         var next = _neighborBuffer[i];
+
+                         if (_distance[next.x, next.y] >= 0)
                               continue;
 
-                         distance[next.x, next.y] = currentDistance + 1;
-                         queue.Enqueue(next);
+                         _distance[next.x, next.y] = currentDistance + 1;
+                         _queue.Enqueue(next);
                     }
                }
 
-               return distance;
+               return _distance;
           }
 
-          private static List<Vector2Int> ReconstructPath(Vector2Int[,] parent, Vector2Int start, Vector2Int target)
+          private void EnsureBuffers(int width, int height)
           {
-               var path    = new List<Vector2Int>();
-               var current = target;
+               if (_visited != null && _bufferWidth == width && _bufferHeight == height)
+                    return;
 
-               path.Add(current);
+               _visited      = new bool[width, height];
+               _parent       = new Vector2Int[width, height];
+               _distance     = new int[width, height];
+               _bufferWidth  = width;
+               _bufferHeight = height;
+          }
+
+          private void ResetVisited()
+          {
+               for (int y = 0; y < _bufferHeight; y++)
+               {
+                    for (int x = 0; x < _bufferWidth; x++)
+                    {
+                         _visited[x, y] = false;
+                    }
+               }
+          }
+
+          private void ResetParent()
+          {
+               for (int y = 0; y < _bufferHeight; y++)
+               {
+                    for (int x = 0; x < _bufferWidth; x++)
+                    {
+                         _parent[x, y] = InvalidCell;
+                    }
+               }
+          }
+
+          private void ResetDistance()
+          {
+               for (int y = 0; y < _bufferHeight; y++)
+               {
+                    for (int x = 0; x < _bufferWidth; x++)
+                    {
+                         _distance[x, y] = -1;
+                    }
+               }
+          }
+
+          private List<Vector2Int> ReconstructPath(Vector2Int start, Vector2Int target)
+          {
+               _pathBuffer.Clear();
+
+               var current = target;
+               _pathBuffer.Add(current);
 
                while (current != start)
                {
-                    current = parent[current.x, current.y];
+                    current = _parent[current.x, current.y];
 
                     if (current == InvalidCell)
                          return null;
 
-                    path.Add(current);
+                    _pathBuffer.Add(current);
                }
 
-               path.Reverse();
+               _pathBuffer.Reverse();
 
-               return path;
+               return _pathBuffer;
           }
 
-          private static IEnumerable<Vector2Int> GetWalkableNeighbors(MazeData mazeData, Vector2Int position)
+          private static int FillWalkableNeighbors(MazeData mazeData, Vector2Int position, Vector2Int[] neighbors)
           {
-               int x = position.x;
-               int y = position.y;
+               int count = 0;
+               int x     = position.x;
+               int y     = position.y;
 
                var cell = mazeData.GetCell(x, y);
 
-               // Top
                if (mazeData.IsInside(x, y - 1))
                {
                     var topCell = mazeData.GetCell(x, y - 1);
 
                     if (!cell.TopWall && !topCell.BottomWall)
-                         yield return new Vector2Int(x, y - 1);
+                         neighbors[count++] = new Vector2Int(x, y - 1);
                }
 
-               // Right
                if (mazeData.IsInside(x + 1, y))
                {
                     var rightCell = mazeData.GetCell(x + 1, y);
 
                     if (!cell.RightWall && !rightCell.LeftWall)
-                         yield return new Vector2Int(x + 1, y);
+                         neighbors[count++] = new Vector2Int(x + 1, y);
                }
 
-               // Bottom
                if (mazeData.IsInside(x, y + 1))
                {
                     var bottomCell = mazeData.GetCell(x, y + 1);
 
                     if (!cell.BottomWall && !bottomCell.TopWall)
-                         yield return new Vector2Int(x, y + 1);
+                         neighbors[count++] = new Vector2Int(x, y + 1);
                }
 
-               // Left
                if (mazeData.IsInside(x - 1, y))
                {
                     var leftCell = mazeData.GetCell(x - 1, y);
 
                     if (!cell.LeftWall && !leftCell.RightWall)
-                         yield return new Vector2Int(x - 1, y);
+                         neighbors[count++] = new Vector2Int(x - 1, y);
                }
+
+               return count;
           }
      }
 
      public sealed class MazeTargetSelector
      {
-          private readonly MazePathfinder _pathfinder;
+          private readonly MazePathfinder   _pathfinder;
+          private readonly List<Vector2Int> _candidates = new();
 
           public MazeTargetSelector(MazePathfinder pathfinder) { _pathfinder = pathfinder; }
 
@@ -185,7 +232,7 @@
           {
                var distanceMap = _pathfinder.BuildDistanceMap(mazeData, startCell);
 
-               var candidates = new List<Vector2Int>();
+               _candidates.Clear();
 
                for (int y = 0; y < mazeData.Height; y++)
                {
@@ -199,26 +246,22 @@
                          int distance = distanceMap[x, y];
 
                          if (distance >= minDistance)
-                              candidates.Add(cell);
+                              _candidates.Add(cell);
                     }
                }
 
-               if (candidates.Count == 0)
-               {
-                    candidates = GetFallbackCandidates(mazeData, startCell, distanceMap);
-               }
+               if (_candidates.Count == 0)
+                    FillFallbackCandidates(mazeData, startCell, distanceMap);
 
-               if (candidates.Count == 0)
+               if (_candidates.Count == 0)
                     return startCell;
 
-               var random = new Random(seed);
-
-               return candidates[random.Next(candidates.Count)];
+               return _candidates[GetDeterministicIndex(seed, _candidates.Count)];
           }
 
-          private static List<Vector2Int> GetFallbackCandidates(MazeData mazeData, Vector2Int startCell, int[,] distanceMap)
+          private void FillFallbackCandidates(MazeData mazeData, Vector2Int startCell, int[,] distanceMap)
           {
-               var result = new List<Vector2Int>();
+               _candidates.Clear();
 
                for (int y = 0; y < mazeData.Height; y++)
                {
@@ -230,11 +273,22 @@
                               continue;
 
                          if (distanceMap[x, y] > 0)
-                              result.Add(cell);
+                              _candidates.Add(cell);
                     }
                }
+          }
 
-               return result;
+          private static int GetDeterministicIndex(int seed, int maxExclusive)
+          {
+               unchecked
+               {
+                    uint value = (uint)seed;
+                    value ^= value << 13;
+                    value ^= value >> 17;
+                    value ^= value << 5;
+
+                    return (int)(value % (uint)maxExclusive);
+               }
           }
      }
 }

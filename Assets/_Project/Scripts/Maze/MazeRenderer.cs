@@ -1,11 +1,17 @@
-﻿namespace _Project.Scripts.Maze
+namespace _Project.Scripts.Maze
 {
+     using System.Threading;
+     using _Project.Scripts.Shared.Addressable;
+     using _Project.Scripts.Shared.Pooling;
+     using _Project.Scripts.Shared.Services;
+     using Cysharp.Threading.Tasks;
+     using Sirenix.OdinInspector;
      using UnityEngine;
 
      public sealed class MazeRenderer : MonoBehaviour
      {
           [Header("Prefab")]
-          [SerializeField] private SpriteRenderer _spritePrefab;
+          [SerializeField] private string _spritePrefabKey = "Square";
 
           [Header("Roots")]
           [SerializeField] private Transform _wallRoot;
@@ -19,11 +25,35 @@
           [Header("Colors")]
           [SerializeField] private Color _wallColor = new Color(0.36f, 0.22f, 0.08f, 1f);
 
-          public void Render(MazeData mazeData)
+          private GameObject          _spritePrefab;
+          private PoolManager         _poolManager;
+          private IAddressableService _addressableService;
+          private int                 _renderVersion;
+
+          public void Render(MazeData mazeData) { RenderAsync(mazeData, this.GetCancellationTokenOnDestroy()).Forget(); }
+
+          private void OnDestroy()
           {
+               if (_poolManager != null && _spritePrefab != null)
+                    _poolManager.DestroyPool(_spritePrefab);
+
+               if (_addressableService != null && _spritePrefab != null)
+                    _addressableService.ReleaseAsset(_spritePrefabKey);
+
+               _spritePrefab = null;
+          }
+
+          private async UniTask RenderAsync(MazeData mazeData, CancellationToken ct)
+          {
+               int renderVersion = ++_renderVersion;
+
                Clear();
 
                _origin = CalculateOrigin(mazeData.Width, mazeData.Height);
+               await EnsurePrefabLoadedAsync(ct);
+
+               if (renderVersion != _renderVersion || _spritePrefab == null)
+                    return;
 
                for (int y = 0; y < mazeData.Height; y++)
                {
@@ -61,9 +91,25 @@
                return new Vector3(-mazeWidth * 0.5f, mazeHeight * 0.5f, 0f);
           }
 
+          private async UniTask EnsurePrefabLoadedAsync(CancellationToken ct)
+          {
+               if (_spritePrefab != null)
+                    return;
+
+               _addressableService = ServiceLocator.Resolve<IAddressableService>();
+               _poolManager        = ServiceLocator.Resolve<PoolManager>();
+               _spritePrefab       = await _addressableService.LoadAssetAsync<GameObject>(_spritePrefabKey, ct);
+
+               if (_spritePrefab == null)
+                    Debug.LogError($"[MazeRenderer] Failed to load addressable prefab '{_spritePrefabKey}'.");
+          }
+
           private void RenderHorizontalWall(Vector3 position)
           {
                var wall = CreateSprite(_wallRoot, "HorizontalWall", _wallColor, 2);
+
+               if (wall == null) return;
+
                wall.transform.position   = position;
                wall.transform.localScale = new Vector3(_cellSize + _wallThickness, _wallThickness, 1f);
           }
@@ -71,6 +117,9 @@
           private void RenderVerticalWall(Vector3 position)
           {
                var wall = CreateSprite(_wallRoot, "VerticalWall", _wallColor, 2);
+
+               if (wall == null) return;
+
                wall.transform.position   = position;
                wall.transform.localScale = new Vector3(_wallThickness, _cellSize + _wallThickness, 1f);
           }
@@ -97,7 +146,17 @@
 
           private SpriteRenderer CreateSprite(Transform parent, string objectName, Color color, int sortingOrder)
           {
-               var sprite = Instantiate(_spritePrefab, parent);
+               var item   = _poolManager.Spawn(_spritePrefab, parent);
+               var sprite = item.GetComponent<SpriteRenderer>();
+
+               if (sprite == null)
+               {
+                    Debug.LogError($"[MazeRenderer] Addressable prefab '{_spritePrefabKey}' missing SpriteRenderer.");
+                    _poolManager.Recycle(item);
+
+                    return null;
+               }
+
                sprite.name         = objectName;
                sprite.color        = color;
                sprite.sortingOrder = sortingOrder;
@@ -105,14 +164,23 @@
                return sprite;
           }
 
-          void Clear() { ClearRoot(_wallRoot); }
+          void Clear()
+          {
+               if (_poolManager != null && _spritePrefab != null)
+               {
+                    _poolManager.RecycleAll(_spritePrefab);
+               }
+          }
 
-          private static void ClearRoot(Transform root)
+     #if UNITY_EDITOR
+          [Button]
+          private void ClearRoot(Transform root)
           {
                for (int i = root.childCount - 1; i >= 0; i--)
                {
                     DestroyImmediate(root.GetChild(i).gameObject);
                }
           }
+     #endif
      }
 }

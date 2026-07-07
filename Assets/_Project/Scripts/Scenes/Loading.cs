@@ -42,15 +42,12 @@ namespace _Project.Scripts.Scenes
                try
                {
                     var addressableService = ServiceLocator.Resolve<IAddressableService>();
-                    Debug.Log("0");
                     await uiService.PreloadLoadingAsync<LoadingView>(nameof(LoadingView), cancellationToken);
                     var sceneLoad = await addressableService.PreloadSceneAsync(_homeSceneName, ct: cancellationToken);
 
                     _progressBar.fillAmount = 0.3f;
 
                     _progressBar.DOFillAmount(1f, _loadingDuration).SetEase(Ease.Linear).SetTarget(_progressBar);
-                    Debug.Log("1");
-
                     await UniTask.WaitForSeconds(_loadingDuration, cancellationToken: cancellationToken);
                     _progressBar.DOKill();
                     _progressBar.fillAmount = 1f;

@@ -895,9 +895,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c824e6af4fee48948f7afe52c647a4a4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Map.StageMapLayout
-  scrollRect: {fileID: 2848421475051662844}
-  content: {fileID: 1536246878163877070}
-  rowPrefab: {fileID: 8712427824182304288, guid: 9bbeff9de7bf60e4db297af5b8772c0f, type: 3}
+  _scrollRect: {fileID: 2848421475051662844}
+  _content: {fileID: 1536246878163877070}
+  _rowPrefabKey: StageMapRow
   stagePerRow: 4
   rowHeight: 250
   maxRowShow: 9
