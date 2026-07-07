@@ -2,8 +2,6 @@
 
 Bug Maze Journey is a 2D Unity puzzle game where the player guides a bug through procedurally generated mazes. Each stage generates a deterministic maze, selects a reachable target, supports hint rendering, and unlocks progress on the stage map.
 
-<img src="Assets/_Project/Art/map.PNG" alt="Bug Maze Journey stage map preview" width="720">
-
 ## Download
 
 Download the latest Android build from GitHub Releases:
