@@ -114,6 +114,12 @@
                });
           }
 
+          public void StopBugMove()
+          {
+               if (!_bugController.IsMoving) return;
+                    _bugController.KillMove();
+          }
+          
           private bool FindAndRenderPath()
           {
                bool found = _pathfinder.TryFindPath(_currentMazeData, _startCell, _currentTargetCell, out _currentPath);
