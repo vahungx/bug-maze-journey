@@ -66,6 +66,7 @@
           {
                try
                {
+                    _model.MazeController.StopBugMove();
                     var uiService = ServiceLocator.Resolve<IUIService>();
                     await uiService.ShowLoadingAsync<LoadingView>(nameof(LoadingView));
                     var addressableService = ServiceLocator.Resolve<IAddressableService>();
