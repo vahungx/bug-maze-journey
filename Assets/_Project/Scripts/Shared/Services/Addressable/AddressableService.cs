@@ -16,6 +16,7 @@
           IDisposable
      {
           private readonly Dictionary<string, AsyncOperationHandle> _handleCache = new();
+          private readonly Dictionary<string, AsyncOperationHandle> _loadingCache = new();
           private readonly Dictionary<string, int>                  _refCount    = new();
 
           // Track riêng các handle của Instantiate để release đúng cách
@@ -36,30 +37,18 @@
                     return (T)cached.Result;
                }
 
+               if (_loadingCache.TryGetValue(key, out var loading))
+               {
+                    _refCount[key]++;
+
+                    return await AwaitSharedLoadAsync<T>(key, loading, ct);
+               }
+
                var handle = Addressables.LoadAssetAsync<T>(key);
+               _loadingCache[key] = handle;
+               _refCount[key]     = 1;
 
-               try
-               {
-                    await handle.ToUniTask(cancellationToken: ct);
-               } catch (OperationCanceledException)
-               {
-                    Addressables.Release(handle);
-
-                    throw;
-               }
-
-               if (handle.Status != AsyncOperationStatus.Succeeded)
-               {
-                    Debug.LogError($"[Addressable] Failed to load: {key}");
-                    Addressables.Release(handle);
-
-                    return null;
-               }
-
-               _handleCache[key] = handle;
-               _refCount[key]    = 1;
-
-               return handle.Result;
+               return await AwaitSharedLoadAsync<T>(key, handle, ct);
           }
 
           // ── Load nhiều key song song ───────────────────────────────────────────
@@ -254,7 +243,13 @@
           // ── Release ───────────────────────────────────────────────────────────
           public void ReleaseAsset(string key)
           {
-               if (!_handleCache.TryGetValue(key, out var handle)) return;
+               if (!_handleCache.TryGetValue(key, out var handle))
+               {
+                    if (_loadingCache.TryGetValue(key, out var loading))
+                         ReleaseLoadingReference(key, loading);
+
+                    return;
+               }
 
                _refCount[key]--;
 
@@ -277,10 +272,12 @@
           public void ReleaseAll()
           {
                foreach (var h in _handleCache.Values) Addressables.Release(h);
+               foreach (var h in _loadingCache.Values) Addressables.Release(h);
                foreach (var h in _instanceHandles.Values) Addressables.Release(h);
                foreach (var h in _sceneHandles.Values) Addressables.UnloadSceneAsync(h);
 
                _handleCache.Clear();
+               _loadingCache.Clear();
                _refCount.Clear();
                _instanceHandles.Clear();
                _sceneHandles.Clear();
@@ -288,6 +285,64 @@
           }
 
           public void Dispose() => ReleaseAll();
+
+          private async UniTask<T> AwaitSharedLoadAsync<T>(string key, AsyncOperationHandle handle,
+               CancellationToken                                  ct)
+               where T : Object
+          {
+               try
+               {
+                    await handle.ToUniTask(cancellationToken: ct);
+               } catch (OperationCanceledException)
+               {
+                    ReleaseLoadingReference(key, handle);
+
+                    throw;
+               }
+
+               if (handle.Status != AsyncOperationStatus.Succeeded)
+               {
+                    if (_loadingCache.TryGetValue(key, out var loading) && loading.Equals(handle))
+                    {
+                         Debug.LogError($"[Addressable] Failed to load: {key}");
+                         _loadingCache.Remove(key);
+                         _refCount.Remove(key);
+                         Addressables.Release(handle);
+                    }
+
+                    return null;
+               }
+
+               if (_loadingCache.TryGetValue(key, out var currentLoading) && currentLoading.Equals(handle))
+               {
+                    _loadingCache.Remove(key);
+                    _handleCache[key] = handle;
+               }
+
+               return (T)handle.Result;
+          }
+
+          private void ReleaseLoadingReference(string key, AsyncOperationHandle handle)
+          {
+               if (!_loadingCache.TryGetValue(key, out var loading) || !loading.Equals(handle))
+                    return;
+
+               if (!_refCount.TryGetValue(key, out var count))
+                    return;
+
+               count--;
+
+               if (count > 0)
+               {
+                    _refCount[key] = count;
+
+                    return;
+               }
+
+               _loadingCache.Remove(key);
+               _refCount.Remove(key);
+               Addressables.Release(handle);
+          }
 
           private sealed class AddressableSceneHandle : IAddressableSceneHandle
           {

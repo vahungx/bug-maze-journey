@@ -236,7 +236,7 @@ GameObject:
   - component: {fileID: 5901417902610955830}
   - component: {fileID: 8712427824182304288}
   m_Layer: 5
-  m_Name: Row
+  m_Name: StageMapRow
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

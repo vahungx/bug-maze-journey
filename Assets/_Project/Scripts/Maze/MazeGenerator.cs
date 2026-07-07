@@ -1,6 +1,5 @@
 ﻿namespace _Project.Scripts.Maze
 {
-     using System;
      using System.Collections.Generic;
      using UnityEngine;
 
@@ -48,6 +47,7 @@
           {
                var random = new System.Random(seed);
                var stack  = new Stack<MazeCell>();
+               var unvisitedNeighbors = new MazeCell[4];
 
                var start = mazeData.GetCell(0, 0);
                start.Visited = true;
@@ -55,17 +55,17 @@
 
                while (stack.Count > 0)
                {
-                    var current            = stack.Peek();
-                    var unvisitedNeighbors = GetUnvisitedNeighbors(mazeData, current);
+                    var current       = stack.Peek();
+                    int neighborCount = FillUnvisitedNeighbors(mazeData, current, unvisitedNeighbors);
 
-                    if (unvisitedNeighbors.Count == 0)
+                    if (neighborCount == 0)
                     {
                          stack.Pop();
 
                          continue;
                     }
 
-                    var next = unvisitedNeighbors[random.Next(unvisitedNeighbors.Count)];
+                    var next = unvisitedNeighbors[random.Next(neighborCount)];
 
                     RemoveWallBetween(current, next);
                     next.Visited = true;
@@ -73,9 +73,9 @@
                }
           }
 
-          private static List<MazeCell> GetUnvisitedNeighbors(MazeData mazeData, MazeCell cell)
+          private static int FillUnvisitedNeighbors(MazeData mazeData, MazeCell cell, MazeCell[] neighbors)
           {
-               var result = new List<MazeCell>(4);
+               int count = 0;
 
                foreach (var direction in Directions)
                {
@@ -88,10 +88,10 @@
                     var neighbor = mazeData.GetCell(nextX, nextY);
 
                     if (!neighbor.Visited)
-                         result.Add(neighbor);
+                         neighbors[count++] = neighbor;
                }
 
-               return result;
+               return count;
           }
 
           private static void RemoveWallBetween(MazeCell current, MazeCell next)
