@@ -1,4 +1,4 @@
-﻿namespace _Project.Scripts.Maze
+namespace _Project.Scripts.Maze
 {
      using System.Collections.Generic;
      using _Project.Scripts.LocalData;
@@ -14,13 +14,20 @@
      {
           private const int BaseSeed            = 1000;
           private const int StageSeedMultiplier = 37;
-          private const int TargetSeedOffset    = 9999;
-          private const int MinTargetDistance   = 20;
+          private const int TargetSeedOffset       = 9999;
+          private const int ExtraPassageSeedOffset = 48611;
+          private const int MinTargetDistance      = 20;
 
           [Header("Maze Settings")]
           [SerializeField] private int _width = 10;
 
           [SerializeField] private int _height = 13;
+
+          [Header("Braiding")]
+          [SerializeField, Min(0)] private int _extraPassageCount = 6;
+          [SerializeField, Min(0)] private int _protectedStartRadius;
+          [SerializeField, Min(1)] private int _maxExtraPassagesPerCell = 1;
+          [SerializeField] private bool _preventOpenTwoByTwoAreas = true;
 
           [Header("References")]
           [SerializeField] private MazeRenderer _mazeRenderer;
@@ -32,6 +39,7 @@
           private readonly Vector2Int _startCell = Vector2Int.zero;
 
           private readonly MazeGenerator  _mazeGenerator = new();
+          private readonly MazeBraider    _mazeBraider   = new();
           private readonly MazePathfinder _pathfinder    = new();
 
           private MazeTargetSelector _targetSelector;
@@ -54,11 +62,21 @@
                _targetController.Hide();
                _currentPath = null;
 
-               int mazeSeed   = GetMazeSeed(stageId);
-               int targetSeed = GetTargetSeed(stageId);
+               int mazeSeed         = GetMazeSeed(stageId);
+               int extraPassageSeed = GetExtraPassageSeed(stageId);
+               int targetSeed       = GetTargetSeed(stageId);
 
                _currentMazeData           = _mazeGenerator.Generate(_width, _height, mazeSeed);
                _currentMazeData.StartCell = _startCell;
+
+               _mazeBraider.Braid(
+                    _currentMazeData,
+                    extraPassageSeed,
+                    _extraPassageCount,
+                    _startCell,
+                    _protectedStartRadius,
+                    _maxExtraPassagesPerCell,
+                    _preventOpenTwoByTwoAreas);
 
                _mazeRenderer.Render(_currentMazeData);
 
@@ -140,6 +158,11 @@
           }
 
           private static int GetMazeSeed(int stageId) { return BaseSeed + stageId * StageSeedMultiplier; }
+
+          private static int GetExtraPassageSeed(int stageId)
+          {
+               return unchecked(GetMazeSeed(stageId) + ExtraPassageSeedOffset);
+          }
 
           private static int GetTargetSeed(int stageId) { return GetMazeSeed(stageId) + TargetSeedOffset; }
      }
