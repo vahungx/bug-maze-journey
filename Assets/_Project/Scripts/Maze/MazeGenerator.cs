@@ -1,11 +1,13 @@
-﻿namespace _Project.Scripts.Maze
+namespace _Project.Scripts.Maze
 {
-     using System.Collections.Generic;
+     using System;
      using UnityEngine;
 
      public sealed class MazeGenerator
      {
-          private readonly static Vector2Int[] Directions =
+          private const int InitialStackCapacity = 256;
+
+          private static readonly Vector2Int[] Directions =
           {
                new Vector2Int(0, -1), // Top
                new Vector2Int(1, 0),  // Right
@@ -13,8 +15,18 @@
                new Vector2Int(-1, 0), // Left
           };
 
+          private readonly MazeCell[] _unvisitedNeighborBuffer = new MazeCell[4];
+
+          private MazeCell[] _stackBuffer = new MazeCell[InitialStackCapacity];
+
           public MazeData Generate(int width, int height, int seed)
           {
+               if (width <= 0)
+                    throw new ArgumentOutOfRangeException(nameof(width), width, "Maze width must be positive.");
+
+               if (height <= 0)
+                    throw new ArgumentOutOfRangeException(nameof(height), height, "Maze height must be positive.");
+
                var cells = CreateCells(width, height);
 
                var mazeData = new MazeData(width, height, cells)
@@ -22,6 +34,7 @@
                     StartCell = Vector2Int.zero
                };
 
+               EnsureStackCapacity(width * height);
                GenerateByDfs(mazeData, seed);
                ClearVisited(mazeData);
 
@@ -43,82 +56,69 @@
                return cells;
           }
 
-          private static void GenerateByDfs(MazeData mazeData, int seed)
+          private void GenerateByDfs(MazeData mazeData, int seed)
           {
-               var random = new System.Random(seed);
-               var stack  = new Stack<MazeCell>();
-               var unvisitedNeighbors = new MazeCell[4];
+               var random = new MazeRandom(seed);
 
-               var start = mazeData.GetCell(0, 0);
+               int stackCount = 0;
+
+               MazeCell start = mazeData.GetCell(0, 0);
                start.Visited = true;
-               stack.Push(start);
+               _stackBuffer[stackCount++] = start;
 
-               while (stack.Count > 0)
+               while (stackCount > 0)
                {
-                    var current       = stack.Peek();
-                    int neighborCount = FillUnvisitedNeighbors(mazeData, current, unvisitedNeighbors);
+                    MazeCell current = _stackBuffer[stackCount - 1];
+                    int neighborCount = FillUnvisitedNeighbors(mazeData, current);
 
                     if (neighborCount == 0)
                     {
-                         stack.Pop();
+                         stackCount--;
 
                          continue;
                     }
 
-                    var next = unvisitedNeighbors[random.Next(neighborCount)];
+                    MazeCell next = _unvisitedNeighborBuffer[random.Next(neighborCount)];
 
-                    RemoveWallBetween(current, next);
+                    mazeData.TryOpenPassage(current.X, current.Y, next.X, next.Y);
                     next.Visited = true;
-                    stack.Push(next);
+                    _stackBuffer[stackCount++] = next;
                }
           }
 
-          private static int FillUnvisitedNeighbors(MazeData mazeData, MazeCell cell, MazeCell[] neighbors)
+          private int FillUnvisitedNeighbors(MazeData mazeData, MazeCell cell)
           {
                int count = 0;
 
-               foreach (var direction in Directions)
+               for (int i = 0; i < Directions.Length; i++)
                {
+                    Vector2Int direction = Directions[i];
                     int nextX = cell.X + direction.x;
                     int nextY = cell.Y + direction.y;
 
                     if (!mazeData.IsInside(nextX, nextY))
                          continue;
 
-                    var neighbor = mazeData.GetCell(nextX, nextY);
+                    MazeCell neighbor = mazeData.GetCell(nextX, nextY);
 
                     if (!neighbor.Visited)
-                         neighbors[count++] = neighbor;
+                         _unvisitedNeighborBuffer[count++] = neighbor;
                }
 
                return count;
           }
 
-          private static void RemoveWallBetween(MazeCell current, MazeCell next)
+          private void EnsureStackCapacity(int requiredCapacity)
           {
-               int dx = next.X - current.X;
-               int dy = next.Y - current.Y;
+               if (_stackBuffer.Length >= requiredCapacity)
+                    return;
 
-               if (dx == 1)
-               {
-                    current.RightWall = false;
-                    next.LeftWall     = false;
-               }
-               else if (dx == -1)
-               {
-                    current.LeftWall = false;
-                    next.RightWall   = false;
-               }
-               else if (dy == 1)
-               {
-                    current.BottomWall = false;
-                    next.TopWall       = false;
-               }
-               else if (dy == -1)
-               {
-                    current.TopWall = false;
-                    next.BottomWall = false;
-               }
+               int newCapacity = _stackBuffer.Length;
+
+               while (newCapacity < requiredCapacity)
+                    newCapacity *= 2;
+
+               Array.Resize(ref _stackBuffer, newCapacity);
           }
 
           private static void ClearVisited(MazeData mazeData)

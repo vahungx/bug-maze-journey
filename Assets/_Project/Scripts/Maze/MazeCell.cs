@@ -1,4 +1,4 @@
-﻿namespace _Project.Scripts.Maze
+namespace _Project.Scripts.Maze
 {
      using UnityEngine;
 
@@ -39,5 +39,71 @@
           public bool IsInside(int x, int y) { return x >= 0 && x < Width && y >= 0 && y < Height; }
 
           public MazeCell GetCell(int x, int y) { return Cells[x, y]; }
-     }
+     
+
+public bool IsPassageOpen(int x, int y, int nextX, int nextY)
+          {
+               if (!IsInside(x, y) || !IsInside(nextX, nextY))
+                    return false;
+
+               int dx = nextX - x;
+               int dy = nextY - y;
+
+               if (dx * dx + dy * dy != 1)
+                    return false;
+
+               MazeCell current = GetCell(x, y);
+               MazeCell next    = GetCell(nextX, nextY);
+
+               if (dx == 1)
+                    return !current.RightWall && !next.LeftWall;
+
+               if (dx == -1)
+                    return !current.LeftWall && !next.RightWall;
+
+               if (dy == 1)
+                    return !current.BottomWall && !next.TopWall;
+
+               return !current.TopWall && !next.BottomWall;
+          }
+
+
+public bool TryOpenPassage(int x, int y, int nextX, int nextY)
+          {
+               if (!IsInside(x, y) || !IsInside(nextX, nextY))
+                    return false;
+
+               int dx = nextX - x;
+               int dy = nextY - y;
+
+               if (dx * dx + dy * dy != 1)
+                    return false;
+
+               MazeCell current = GetCell(x, y);
+               MazeCell next    = GetCell(nextX, nextY);
+
+               if (dx == 1)
+               {
+                    current.RightWall = false;
+                    next.LeftWall     = false;
+               }
+               else if (dx == -1)
+               {
+                    current.LeftWall = false;
+                    next.RightWall   = false;
+               }
+               else if (dy == 1)
+               {
+                    current.BottomWall = false;
+                    next.TopWall       = false;
+               }
+               else
+               {
+                    current.TopWall = false;
+                    next.BottomWall = false;
+               }
+
+               return true;
+          }
+}
 }
